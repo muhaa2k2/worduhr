@@ -19,7 +19,7 @@ oclock = board.SCK
 M_BREIT=11
 M_HOCH=10
 numleds = M_BREIT*M_HOCH+4
-bright = 0.5
+bright = 1.0
 leds = adafruit_ws2801.WS2801(
     oclock, odata, numleds, brightness=bright, auto_write=False
 )
@@ -99,6 +99,72 @@ def UHR_DREIVIERTEL():
 #define H_ELF        matrix[offscreenPage][4] |= 0b00000111000
 #define H_ZWOELF     matrix[offscreenPage][8] |= 0b00000011111
 
+def UHR_H_EIN():
+    m=np.zeros([M_HOCH,M_BREIT],dtype=np.uint8)
+    m[5,(0,1,2)] = 1
+    return m
+
+def UHR_H_EINS():
+    m=np.zeros([M_HOCH,M_BREIT],dtype=np.uint8)
+    m[5,(0,1,2,3)] = 1
+    return m
+
+def UHR_H_ZWEI():
+    m=np.zeros([M_HOCH,M_BREIT],dtype=np.uint8)
+    m[5,(7,8,9,10)] = 1
+    return m
+
+def UHR_H_DREI():
+    m=np.zeros([M_HOCH,M_BREIT],dtype=np.uint8)
+    m[6,(0,1,2,3)] = 1
+    return m
+
+def UHR_H_VIER():
+    m=np.zeros([M_HOCH,M_BREIT],dtype=np.uint8)
+    m[6,(7,8,9,10)] = 1
+    return m
+
+def UHR_H_FUENF():
+    m=np.zeros([M_HOCH,M_BREIT],dtype=np.uint8)
+    m[4,(7,8,9,10)] = 1
+    return m
+
+def UHR_H_SECHS():
+    m=np.zeros([M_HOCH,M_BREIT],dtype=np.uint8)
+    m[7,(0,1,2,3,4)] = 1
+    return m
+
+def UHR_H_SIEBEN():
+    m=np.zeros([M_HOCH,M_BREIT],dtype=np.uint8)
+    m[8,(0,1,2,3,4,5)] = 1
+    return m
+
+def UHR_H_ACHT():
+    m=np.zeros([M_HOCH,M_BREIT],dtype=np.uint8)
+    m[7,(7,8,9,10)] = 1
+    return m
+
+def UHR_H_NEUN():
+    m=np.zeros([M_HOCH,M_BREIT],dtype=np.uint8)
+    m[9,(3,4,5,6)] = 1
+    return m
+
+def UHR_H_ZEHN():
+    m=np.zeros([M_HOCH,M_BREIT],dtype=np.uint8)
+    m[9,(0,1,2,3)] = 1
+    return m
+
+def UHR_H_ELF():
+    m=np.zeros([M_HOCH,M_BREIT],dtype=np.uint8)
+    m[4,(5,6,7)] = 1
+    return m
+
+def UHR_H_ZWOELF():
+    m=np.zeros([M_HOCH,M_BREIT],dtype=np.uint8)
+    m[8,(6,7,8,9,10)] = 1
+    return m
+
+
 c_blue   =(255,200,0) #blue
 c_red   =(255,0,0) #blue
 c_farbe1 =(255,69,0)# 5 - 6
@@ -173,7 +239,7 @@ def drawMinute(minutes,color):
         leds.show()
 
 def draw_matrix(matrix,color):
-    clear()
+    #clear()
     ml=matrix_to_list(matrix)
     for idx in range(numleds-4):
         if(ml[idx]==1):
@@ -239,65 +305,99 @@ def set_minute_words(hours,minutes):
     if minutes_group == 0:
         var1=0
         # Glatte Stunde
-    #    set_houres(offscreen_page, hours, True)
+        m |=set_houres(hours, True)
     elif minutes_group == 1:
         # 5 nach
         m |=UHR_FUENF()
         m |=UHR_NACH()
-    #    set_houres(offscreen_page, hours, False)
+        m |=set_houres(hours, False)
     elif minutes_group == 2:
         # 10 nach
         m |=UHR_ZEHN()
         m |=UHR_NACH()
-    #    set_houres(offscreen_page, hours, False)
+        m |=set_houres(hours, False)
     elif minutes_group == 3:
         # Viertel nach
         m |=UHR_VIERTEL()
         m |=UHR_NACH()
-    #    set_houres(offscreen_page, hours, False)
+        m |=set_houres(hours, False)
     elif minutes_group == 4:
         # 20 nach
         m |=UHR_ZWANZIG()
         m |=UHR_NACH()
-    #    set_houres(offscreen_page, hours, False)
+        m |=set_houres(hours, False)
     elif minutes_group == 5:
         # 5 vor halb
         m |=UHR_FUENF()
         m |=UHR_VOR()
         m |=UHR_HALB()
-    #    set_houres(offscreen_page, hours + 1, False)
+        m |=set_houres(hours + 1, False)
     elif minutes_group == 6:
         # Halb
         m |=UHR_HALB()
-    #    set_houres(offscreen_page, hours + 1, False)
+        m |=set_houres(hours + 1, False)
     elif minutes_group == 7:
         # 5 nach halb
         m |=UHR_FUENF()
         m |=UHR_NACH()
         m |=UHR_HALB()
-    #    set_houres(offscreen_page, hours + 1, False)
+        m |=set_houres(hours + 1, False)
     elif minutes_group == 8:
         # 10 nach halb
         m |=UHR_ZWANZIG()
         m |=UHR_VOR()
-    #    set_houres(offscreen_page, hours + 1, False)
+        m |=set_houres(hours + 1, False)
     elif minutes_group == 9:
         # Dreiviertel
         m |=UHR_VOR()
         m |=UHR_VIERTEL()
-    #    set_houres(offscreen_page, hours + 1, False)
+        m |=set_houres(hours + 1, False)
     elif minutes_group == 10:
         # 10 vor
         m |=UHR_ZEHN()
         m |=UHR_VOR()
-    #    set_houres(offscreen_page, hours + 1, False)
+        m |=set_houres(hours + 1, False)
     elif minutes_group == 11:
         # 5 vor
         m |=UHR_FUENF()
         m |=UHR_VOR()
-    #    set_houres(offscreen_page, hours + 1, False)
+        m |=set_houres(hours + 1, False)
     return m
 
+def set_houres(hours, glatt):
+    m = np.zeros([M_HOCH,M_BREIT],dtype=np.uint8)
+    # Bei "glatt" UHR hinzufügen
+    if glatt:
+        m |=UHR_UHR()
+    # Auswahl der Stunde
+    if hours in {0, 12, 24}:
+        m |=UHR_H_ZWOELF()
+    elif hours in {1, 13}:
+        if glatt:
+            m |=UHR_H_EIN()
+        else:
+            m |=UHR_H_EINS()
+    elif hours in {2, 14}:
+        m |=UHR_H_ZWEI()
+    elif hours in {3, 15}:
+        m |=UHR_H_DREI()
+    elif hours in {4, 16}:
+        m |=UHR_H_VIER()
+    elif hours in {5, 17}:
+        m |=UHR_H_FUENF()
+    elif hours in {6, 18}:
+        m |=UHR_H_SECHS()
+    elif hours in {7, 19}:
+        m |=UHR_H_SIEBEN()
+    elif hours in {8, 20}:
+        m |=UHR_H_ACHT()
+    elif hours in {9, 21}:
+        m |=UHR_H_NEUN()
+    elif hours in {10, 22}:
+        m |=UHR_H_ZEHN()
+    elif hours in {11, 23}:
+        m |=UHR_H_ELF()
+    return m
 
 ######################### FUN FUNC ##############################
 def RGB_to_color(r, g, b):
@@ -328,7 +428,7 @@ def rainbow_cycle_successive(pixel, wait=0.1):
 
 ######################### MAIN LOOP ##############################
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     # Clear all the pixels to turn them off.
     logger.info('Started')
     clear()
