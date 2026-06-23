@@ -13,17 +13,30 @@ from datetime import datetime
 import logging
 logger = logging.getLogger(__name__)
 
-### Example for a Feather M4 driving 25 12mm leds
+### Beschaltung: Datenleitung (MOSI) und Taktleitung (SCK) des WS2801-Streifens
 odata = board.MOSI
 oclock = board.SCK
+
+# Größe der Buchstaben-Matrix: 11 Spalten x 10 Zeilen (= die Wortuhr-Front)
 M_BREIT=11
 M_HOCH=10
+# Gesamtzahl LEDs: 11x10 Matrix-Pixel + 4 zusätzliche LEDs für die Minuten-Punkte (Eck-LEDs)
 numleds = M_BREIT*M_HOCH+4
 bright = 1.0
 leds = adafruit_ws2801.WS2801(
     oclock, odata, numleds, brightness=bright, auto_write=False
 )
 ######################### HELPERS ##############################
+
+# Jede UHR_*-Funktion liefert eine 10x11-Matrix (numpy, dtype=uint8) zurück,
+# in der genau die Felder auf 1 gesetzt sind, die das jeweilige Wort auf der
+# Front der Wortuhr bilden (1 = LED an, 0 = LED aus). Die Matrizen werden später
+# per bitweisem OR (|=) kombiniert, um die komplette Anzeige für eine Uhrzeit
+# zusammenzusetzen (siehe set_minute_words/set_houres).
+#
+# Die Kommentare im alten C-Stil (#define ...) stammen aus der ursprünglichen
+# Arduino-Vorlage und beschreiben dieselbe Bit-Maske, hier nur als Bitmuster
+# pro Zeile (matrix[offscreenPage][zeile] |= 0bMASKE) statt als 2D-Matrix.
 
 #define VOR          matrix[offscreenPage][3] |= 0b11100000000
 #define NACH         matrix[offscreenPage][3] |= 0b00000001111
@@ -165,6 +178,11 @@ def UHR_H_ZWOELF():
     return m
 
 
+# Farbpalette der Wortuhr. Jede c_farbeX-Konstante ist eine (R,G,B)-Tupel-Farbe,
+# die laut Kommentar einem bestimmten Tageszeit-Fenster zugeordnet ist
+# (siehe select_color_by_hour weiter unten, dort werden diese Konstanten den
+# einzelnen Stunden zugewiesen). c_blue/c_red/default_color sind feste
+# Sonderfarben (z.B. für das Herz-Easter-Egg oder als Fallback).
 c_blue   =(255,200,0) #blue
 c_red   =(255,0,0) #blue
 c_farbe1 =(255,69,0)# 5 - 6
@@ -184,11 +202,20 @@ default_color = (255,255,255)
 ######################### HELPERS ##############################
 
 
-# a random color 0 -> 224
+# Liefert eine zufällige Helligkeitsstufe (0, 32, 64, ..., 192) -> ungenutzter Helfer
 def random_color():
     return random.randrange(0, 7) * 32
 
 def matrix_to_list(matrix):
+    """Wandelt die logische 10x11-Buchstaben-Matrix in die physische LED-Reihenfolge um.
+
+    Der LED-Streifen ist mäanderförmig ("Schlangenlinie"/Boustrophedon) hinter der
+    Front verlegt: eine Zeile läuft von links nach rechts, die nächste von rechts
+    nach links usw. Deshalb müssen die ungeraden Zeilen (1,3,5,7,9) gespiegelt
+    werden, bevor die Matrix zu einer flachen Liste in LED-Anschlussreihenfolge
+    "abgerollt" werden kann. Die Liste wird abschließend umgedreht, da die
+    LED-Kette an der Matrix-Position [9,10] (unten rechts) beginnt zu zählen.
+    """
     m=np.ndarray.copy(matrix)
     m[1,:]=np.flipud(m[1,:])
     m[3,:]=np.flipud(m[3,:])
@@ -196,16 +223,23 @@ def matrix_to_list(matrix):
     m[7,:]=np.flipud(m[7,:])
     m[9,:]=np.flipud(m[9,:])
     l=list(m.flatten())
-    
+
     return list(reversed(l))
 
 def clear():
-    for idx in range(numleds):  
+    """Schaltet alle LEDs (Buchstaben-Matrix + Minutenpunkte) aus."""
+    for idx in range(numleds):
         leds[idx] = (0,0,0)
     leds.show()
     time.sleep(1)
 
 def drawMinute(minutes,color):
+    """Steuert die 4 einzelnen Minuten-Punkte (LED-Index 110-113) an.
+
+    Jeder 5-Minuten-Block wird durch die Wörter abgedeckt; der Rest
+    (0-4 Minuten innerhalb des Blocks) wird durch 0 bis 4 leuchtende
+    Punkte dargestellt (minutes % 5 Punkte an).
+    """
     if(minutes%5==0):
         leds[110] = (0,0,0)
         leds[111] = (0,0,0)
@@ -239,6 +273,12 @@ def drawMinute(minutes,color):
         leds.show()
 
 def draw_matrix(matrix,color):
+    """Zeichnet die Buchstaben-Matrix (ohne die 4 Minutenpunkte) in der gegebenen Farbe.
+
+    Jedes Matrixfeld mit Wert 1 wird in `color` eingefärbt, alle anderen
+    Felder werden ausgeschaltet. Die 4 Minutenpunkte am Ende der LED-Kette
+    werden hier nicht berührt (siehe drawMinute).
+    """
     #clear()
     ml=matrix_to_list(matrix)
     for idx in range(numleds-4):
@@ -251,6 +291,7 @@ def draw_matrix(matrix,color):
     leds.show()
 
 def set_herz():
+    """Sonder-Anzeige: zeichnet ein Herz auf die Matrix (Easter Egg zu bestimmten Zeiten)."""
     matrix = np.zeros([M_HOCH,M_BREIT],dtype=np.uint8)
     matrix[0,(2,3,7,8)] = 1
     matrix[1,(1,4,6,9)] = 1
@@ -275,7 +316,8 @@ def set_herz():
     return matrix
 
 def select_color_by_hour(hour):
-    
+    """Liefert die für die jeweilige Tagesstunde vorgesehene Anzeigefarbe."""
+
     # Mapping der Stunden zu Farben
     color_map = {
         0: c_farbe0, 1: c_farbe0, 2: c_farbe0, 3: c_farbe0, 4: c_farbe0,
@@ -296,6 +338,15 @@ def select_color_by_hour(hour):
     return color_map.get(hour, default_color)
 
 def set_minute_words(hours,minutes):
+    """Baut die Wort-Matrix für "ES IST <Minutenwort> <VOR/NACH> <Stundenwort> [UHR]".
+
+    Die Minuten werden in 12 Blöcke à 5 Minuten eingeteilt (minutes // 5).
+    Ab dem 6. Block (ab "5 vor halb") bezieht sich die Stundenanzeige bereits
+    auf die kommende Stunde (deshalb set_houres(hours + 1, ...)), so wie man
+    es auch im Deutschen sagt ("5 vor halb drei" bezieht sich auf 3 Uhr).
+    Der verbleibende Rest (0-4 Minuten) wird separat über drawMinute als
+    Punkte angezeigt.
+    """
     m = np.zeros([M_HOCH,M_BREIT],dtype=np.uint8)
     # Bestimmen der Minuten-Gruppen
     minutes_group = minutes // 5
@@ -365,6 +416,13 @@ def set_minute_words(hours,minutes):
     return m
 
 def set_houres(hours, glatt):
+    """Baut die Wort-Matrix für das Stundenwort (EIN(S)/ZWEI/.../ZWÖLF).
+
+    `hours` ist hier bereits die "sprachliche" Stunde (0-23, evtl. von
+    set_minute_words um +1 verschoben). `glatt=True` bedeutet "volle Stunde"
+    (z.B. "ES IST EIN UHR" statt "ES IST EINS"), wodurch zusätzlich das Wort
+    UHR angezeigt und EIN statt EINS verwendet wird.
+    """
     m = np.zeros([M_HOCH,M_BREIT],dtype=np.uint8)
     # Bei "glatt" UHR hinzufügen
     if glatt:
@@ -400,6 +458,8 @@ def set_houres(hours, glatt):
     return m
 
 ######################### FUN FUNC ##############################
+# Reine Effekt-Funktionen für den Start (Regenbogen-Begrüßung), unabhängig
+# von der eigentlichen Uhrzeit-Anzeige.
 def RGB_to_color(r, g, b):
     """Convert three 8-bit red, green, blue component values to a single 24-bit
     color value.
@@ -416,6 +476,7 @@ def wheel(pos):
         pos -= 170
         return RGB_to_color(0, pos * 3, 255 - pos * 3)
 def rainbow_cycle_successive(pixel, wait=0.1):
+    """Lässt beim Start einmalig einen Regenbogen über alle LEDs der Kette laufen."""
     for i in range(numleds):
         # tricky math! we use each pixel as a fraction of the full 96-color wheel
         # (thats the i / strip.numPixels() part)
@@ -429,7 +490,8 @@ def rainbow_cycle_successive(pixel, wait=0.1):
 ######################### MAIN LOOP ##############################
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    # Clear all the pixels to turn them off.
+    # Beim Start: alle LEDs ausschalten und einmal als "Lebenszeichen" einen
+    # Regenbogen über die ganze Kette laufen lassen.
     logger.info('Started')
     clear()
     rainbow_cycle_successive(leds)
@@ -469,22 +531,26 @@ if __name__ == "__main__":
     matrix |= UHR_UHR()
     aktuelle_color=c_farbe1
     logger.debug(f"m\n{matrix}")
+    # stunde/minute halten den zuletzt angezeigten Stand, damit die Matrix nur
+    # bei einer tatsächlichen Änderung neu gezeichnet wird (kein Flackern).
     stunde = 0
     minute = 0
-    #matrix = np.zeros([M_HOCH,M_BREIT],dtype=np.uint8) 
+    #matrix = np.zeros([M_HOCH,M_BREIT],dtype=np.uint8)
     while True:
-        # Aktuelle Uhrzeit auslesen 
+        # Aktuelle Uhrzeit auslesen
         aktuelle_uhrzeit = datetime.now()
         if (aktuelle_uhrzeit.hour != stunde) or  (aktuelle_uhrzeit.minute != minute):
-            # Zeit setzen    
-            stunde = aktuelle_uhrzeit.hour 
-            minute = aktuelle_uhrzeit.minute 
+            # Neue Minute/Stunde erkannt -> Anzeige aktualisieren
+            stunde = aktuelle_uhrzeit.hour
+            minute = aktuelle_uhrzeit.minute
 
-            # Farbe auswählen 
+            # Farbe passend zur Tageszeit auswählen und Wort-Matrix berechnen
             aktuelle_color=select_color_by_hour(stunde)
             matrix=set_minute_words(stunde,minute)
 
-            # Special overwrite 
+            # Special overwrite: an festen Datums-/Zeitpunkten (hier jeweils
+            # Minute 6 um 14 bzw. 23 Uhr) wird statt der Uhrzeit ein Herz
+            # in Rot angezeigt (Easter Egg).
             if(stunde == 14 and minute==6):
                 matrix = set_herz()
                 aktuelle_color = c_red
@@ -492,14 +558,13 @@ if __name__ == "__main__":
                 matrix = set_herz()
                 aktuelle_color = c_red
 
-            # fill each led with a random color     
             logger.info(f"Die aktuelle Stunde {stunde} Minute {minute}")
             logger.debug(f"{matrix}")
             logger.info(f"Farbe {aktuelle_color}")
-            
-             
+
+            # Buchstaben-Matrix und Minutenpunkte auf den LEDs ausgeben
             draw_matrix(matrix,aktuelle_color)
-            # show all leds in led string           
             drawMinute(minute,aktuelle_color)
 
+        # Alle 5 Sekunden auf eine geänderte Uhrzeit prüfen
         time.sleep(5)

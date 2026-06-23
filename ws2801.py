@@ -1,15 +1,19 @@
-# Simple demo of of the WS2801/SPI-like addressable RGB LED lights.
+# Demo-/Testskript für den WS2801-LED-Streifen über die (ältere) Adafruit_WS2801-
+# Bibliothek und Hardware-SPI. Dient nur zum Testen der Verkabelung und zeigt
+# ein paar einfache Lichteffekte (Regenbogen, Ausblenden, Blinken). Die
+# eigentliche Wortuhr-Logik steckt in ws2801_newBib.py.
 import time
 import RPi.GPIO as GPIO
- 
+
 # Import the WS2801 module.
 import Adafruit_WS2801
 import Adafruit_GPIO.SPI as SPI
- 
- 
-# Configure the count of pixels:
+
+
+# Configure the count of pixels (hier: 11x11-Testmatrix, ungleich der echten Wortuhr-Größe):
 PIXEL_COUNT = 11*11
- 
+
+
 # Alternatively specify a hardware SPI connection on /dev/spidev0.0:
 # PIXEL_CLOCK = 22
 # PIXEL_DOUT  = 18
@@ -21,6 +25,8 @@ pixels = Adafruit_WS2801.WS2801Pixels(PIXEL_COUNT, spi=SPI.SpiDev(SPI_PORT, SPI_
  
 ########################## HELPERS ##############################
 # Define the wheel function to interpolate between different hues.
+# pos läuft von 0-255 und durchläuft dabei einmal den vollen Farbkreis
+# (rot -> grün -> blau -> rot).
 def wheel(pos):
     if pos < 85:
         return Adafruit_WS2801.RGB_to_color(pos * 3, 255 - pos * 3, 0)
@@ -32,6 +38,8 @@ def wheel(pos):
         return Adafruit_WS2801.RGB_to_color(0, pos * 3, 255 - pos * 3)
  
 # Define rainbow cycle function to do a cycle of all hues.
+# Färbt die Pixel nacheinander (von vorne nach hinten) in Regenbogenfarben ein,
+# ohne dass sich die Farben über die Zeit bewegen.
 def rainbow_cycle_successive(pixels, wait=0.1):
     for i in range(pixels.count()):
         # tricky math! we use each pixel as a fraction of the full 96-color wheel
@@ -44,22 +52,25 @@ def rainbow_cycle_successive(pixels, wait=0.1):
             time.sleep(wait)
  
 def rainbow_cycle(pixels, wait=0.005):
+    # Lässt einen Regenbogen über alle Pixel "wandern" (klassischer Lauflicht-Effekt).
     for j in range(256): # one cycle of all 256 colors in the wheel
         for i in range(pixels.count()):
             pixels.set_pixel(i, wheel(((i * 256 // pixels.count()) + j) % 256) )
         pixels.show()
         if wait > 0:
             time.sleep(wait)
- 
+
 def rainbow_colors(pixels, wait=0.05):
+    # Färbt alle Pixel synchron in derselben, sich über die Zeit ändernden Farbe.
     for j in range(256): # one cycle of all 256 colors in the wheel
         for i in range(pixels.count()):
             pixels.set_pixel(i, wheel(((256 // pixels.count() + j)) % 256) )
         pixels.show()
         if wait > 0:
             time.sleep(wait)
- 
+
 def brightness_decrease(pixels, wait=0.01, step=1):
+    # Dimmt alle Pixel schrittweise herunter, bis sie aus sind (für sanftes Ausblenden).
     for j in range(int(256 // step)):
         for i in range(pixels.count()):
             r, g, b = pixels.get_pixel_rgb(i)
@@ -72,6 +83,7 @@ def brightness_decrease(pixels, wait=0.01, step=1):
             time.sleep(wait)
  
 def blink_color(pixels, blink_times=5, wait=0.5, color=(255,0,0)):
+    # Lässt alle Pixel `blink_times`-mal zweifach in `color` aufblinken (mit Pause dazwischen).
     for i in range(blink_times):
         # blink two times, then wait
         pixels.clear()
@@ -86,6 +98,7 @@ def blink_color(pixels, blink_times=5, wait=0.5, color=(255,0,0)):
         time.sleep(wait)
  
 def appear_from_back(pixels, color=(255, 0, 0)):
+    # Lässt Pixel einzeln "von hinten" auftauchen und am vorderen Rand stehen bleiben.
     pos = 0
     for i in range(pixels.count()):
         for j in reversed(range(i, pixels.count())):
